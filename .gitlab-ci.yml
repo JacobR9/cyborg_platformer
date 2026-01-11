@@ -1,0 +1,77 @@
+stages:
+  - Test
+  - CodeQuality
+  - Documentation
+  - Build
+  - Release
+
+Test:
+  stage: Test
+  tags:
+    - comp2013_2025_production
+  script:
+    - test.sh
+  artifacts:
+    when: always
+    reports:
+      junit: target/surefire-reports/*.xml
+    paths:
+      - target/surefire-reports/
+
+CodeQuality:
+  stage: CodeQuality
+  tags:
+    - comp2013_2025_production
+  script:
+    - quality.sh
+  artifacts:
+    when: always
+    reports:
+      codequality: quality-reports/codequality.json
+    paths:
+      - quality-reports/
+
+Documentation:
+  stage: Documentation
+  tags:
+    - comp2013_2025_production
+  script:
+    - documentation.sh
+  rules:
+    # Only run on merge requests that have 'dev' as target
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: on_success
+    #Never run on main
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: never
+    - when: never
+
+Build:
+  stage: Build
+  tags:
+    - comp2013_2025_production
+  script:
+    - build.sh
+  artifacts:
+    when: always
+    paths:
+      - target/*.jar
+
+Release:
+  stage: Release
+  tags:
+    - comp2013_2025_production
+  needs:
+    - job: Build
+      artifacts: true
+  script:
+    - echo "Generating release"
+  rules:
+    # runs only when a tag is pushed that matches a main-release naming scheme
+    - if: '$CI_COMMIT_TAG =~ /^main-v\d+\.\d+\.\d+$/'
+      when: on_success
+    - when: never
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    name: "Release $CI_COMMIT_TAG"
+    description: "Automated release created by CI. Includes the JAR built in the Build stage."
